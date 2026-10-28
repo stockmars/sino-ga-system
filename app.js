@@ -1,26 +1,14 @@
-/**
- * SINO GA Frontend App
- * Jika dijalankan via Google Apps Script (doGet), objek `google.script.run` tersedia.
- * Jika dijalankan via GitHub Pages, kita menggunakan `fetch` ke URL Apps Script.
- */
-
-// ⚠️ MASUKKAN URL APPS SCRIPT ANDA DI SINI
+// Konfigurasi URL Apps Script Anda
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyM84uBmebFTGQEX7a4-8pqtj7l_20jNPWsIvXhP7wh96IvNtjlSxggJaUi4lXC71Y9RQ/exec";
-
-// Deteksi apakah kita berjalan di dalam Google Apps Script atau di GitHub Pages
 const isInsideAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
 
-// Jembatan komunikasi universal
+// Jembatan Komunikasi Universal (Bisa via Apps Script / GitHub)
 async function callBackend(fn, ...args) {
   if (isInsideAppsScript) {
     return new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(err => reject(err.message || err))
-        [fn](...args);
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(err => reject(err.message || err))[fn](...args);
     });
   } else {
-    // Mode GitHub Pages Preview: Kirim request POST ke Apps Script
     try {
       const response = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -31,7 +19,7 @@ async function callBackend(fn, ...args) {
       if (result.error) throw new Error(result.error);
       return result.data;
     } catch (err) {
-      throw new Error("Koneksi ke backend gagal. " + err.message);
+      throw new Error("Koneksi backend gagal. " + err.message);
     }
   }
 }
@@ -40,7 +28,7 @@ function renderError(msg) {
   document.getElementById('content').innerHTML = `<div class="error"><b>Error:</b> ${msg}</div>`;
 }
 
-// --- HALAMAN DASHBOARD ---
+// --- DASHBOARD ---
 async function loadDashboard() {
   document.getElementById('pageTitle').textContent = 'Dashboard';
   document.getElementById('content').innerHTML = '<div class="loader">Menghitung data aktual...</div>';
@@ -53,19 +41,18 @@ async function loadDashboard() {
         <div class="card"><div class="stat-value">${data.inService || 0}</div><div class="stat-label">Sedang Servis</div></div>
         <div class="card"><div class="stat-value">${data.totalAssets || 0}</div><div class="stat-label">Total Aset</div></div>
       </div>
-      <div class="card">
-        <h3>Selamat Datang di SINO GA System</h3>
-        <p>Gunakan menu di sebelah kiri untuk mengakses modul.</p>
-      </div>
     `;
   } catch (e) { renderError(e); }
 }
 
-// --- HALAMAN KENDARAAN ---
+// --- VEHICLE MANAGEMENT ---
 async function loadVehicles() {
   document.getElementById('pageTitle').textContent = 'Vehicle Management - Data Kendaraan';
+  document.getElementById('content').innerHTML = '<div class="loader">Memuat data kendaraan...</div>';
+  
   try {
     const list = await callBackend('listVehicles');
+    
     let rows = list.map(v => `
       <tr>
         <td>${v.VehicleID}</td>
@@ -73,44 +60,46 @@ async function loadVehicles() {
         <td>${v.Merek} ${v.Model}</td>
         <td>${v.StatusOperasional}</td>
         <td>${v.KilometerTerakhir ? v.KilometerTerakhir + ' km' : '-'}</td>
+        <td>${v.FotoURL ? `<a href="${v.FotoURL}" target="_blank">Lihat</a>` : '-'}</td>
         <td><button class="btn-danger" data-del="${v.VehicleID}">Hapus</button></td>
       </tr>
     `).join('');
     
     document.getElementById('content').innerHTML = `
       <div class="card">
-        <h3 style="margin-top:0;">Tambah Kendaraan Baru</h3>
+        <h3>Tambah Kendaraan Baru</h3>
         <form id="vehicleForm">
           <div class="form-grid">
-            <div class="form-row"><label>Nomor Polisi</label><input name="NomorPolisi" required></div>
-            <div class="form-row"><label>Merek</label><input name="Merek" required></div>
-            <div class="form-row"><label>Model</label><input name="Model" required></div>
-            <div class="form-row"><label>Tahun</label><input name="Tahun" type="number"></div>
-            <div class="form-row"><label>Kilometer Terakhir</label><input name="KilometerTerakhir" type="number"></div>
+            <div class="form-row"><label>Nomor Polisi</label><input name="NomorPolisi" placeholder="B 1234 XYZ" required></div>
+            <div class="form-row"><label>Merek</label><input name="Merek" placeholder="Toyota" required></div>
+            <div class="form-row"><label>Model</label><input name="Model" placeholder="Avanza" required></div>
+            <div class="form-row"><label>Tahun</label><input name="Tahun" type="number" placeholder="2023"></div>
+            <div class="form-row"><label>Kilometer</label><input name="KilometerTerakhir" type="number" placeholder="15000"></div>
             <div class="form-row">
-              <label>Status Operasional</label>
+              <label>Status</label>
               <select name="StatusOperasional">
-                <option>Aktif</option><option>Servis</option><option>Nonaktif</option>
+                <option value="Aktif">Aktif</option>
+                <option value="Servis">Servis</option>
+                <option value="Nonaktif">Nonaktif</option>
               </select>
             </div>
             <div class="form-row" style="grid-column: span 2;">
-              <label>Foto Kendaraan (Opsional, Max 5MB)</label>
+              <label>Foto (Maks 5MB)</label>
               <input type="file" id="fileFoto" accept="image/*">
             </div>
           </div>
-          <button class="btn-primary" type="submit" id="btnSimpan">Simpan Kendaraan</button>
+          <button class="btn-primary" type="submit" id="btnSimpan">Simpan</button>
         </form>
       </div>
       <div class="card">
-        <h3 style="margin-top:0;">Daftar Kendaraan</h3>
+        <h3>Daftar Kendaraan</h3>
         <table>
-          <thead><tr><th>ID</th><th>Nopol</th><th>Merek/Model</th><th>Status</th><th>KM</th><th>Aksi</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="6">Belum ada data</td></tr>'}</tbody>
+          <thead><tr><th>ID</th><th>Nopol</th><th>Merek/Model</th><th>Status</th><th>KM</th><th>Foto</th><th>Aksi</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center;">Belum ada data</td></tr>'}</tbody>
         </table>
       </div>
     `;
     
-    // Handler Submit Form
     document.getElementById('vehicleForm').onsubmit = async (e) => {
       e.preventDefault();
       const btn = document.getElementById('btnSimpan');
@@ -136,17 +125,17 @@ async function loadVehicles() {
         }
 
         await callBackend('saveVehicle', payload);
+        alert('Data berhasil disimpan!');
         loadVehicles();
       } catch (err) { 
-        alert(err); 
-        btn.textContent = 'Simpan Kendaraan'; btn.disabled = false;
+        alert("Gagal: " + err); 
+        btn.textContent = 'Simpan'; btn.disabled = false;
       }
     };
     
-    // Handler Hapus
     document.querySelectorAll('[data-del]').forEach(btn => {
       btn.onclick = async () => {
-        if (!confirm('Yakin ingin menghapus kendaraan ini?')) return;
+        if (!confirm('Hapus kendaraan ini?')) return;
         await callBackend('deleteVehicle', btn.dataset.del);
         loadVehicles();
       };
@@ -174,17 +163,14 @@ function showPage(page, title) {
 
 // --- INIT ---
 function init() {
-  // Load info user (jika didukung backend)
   callBackend('getCurrentUserEmailForUI')
     .then(u => {
-      const badge = document.getElementById('userBadge');
-      badge.textContent = u ? `${u.Email} (${u.Role})` : 'Guest';
+      document.getElementById('userBadge').textContent = u ? `${u.Email} (${u.Role})` : 'Guest';
     })
     .catch(() => {
       document.getElementById('userBadge').textContent = 'Preview Mode';
     });
 
-  // Setup navigasi
   document.querySelectorAll('.sidebar-nav a').forEach(link => {
     link.addEventListener('click', (e) => {
       e.preventDefault();
