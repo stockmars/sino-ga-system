@@ -2,7 +2,7 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyM84uBmebFTGQEX7a4-8pqtj7l_20jNPWsIvXhP7wh96IvNtjlSxggJaUi4lXC71Y9RQ/exec";
 const isInsideAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
 
-// Jembatan Komunikasi Universal (Bisa via Apps Script / GitHub)
+// Jembatan Komunikasi Universal
 async function callBackend(fn, ...args) {
   if (isInsideAppsScript) {
     return new Promise((resolve, reject) => {
