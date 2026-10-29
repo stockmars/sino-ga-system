@@ -142,7 +142,171 @@ async function loadVehicles() {
     });
   } catch (e) { renderError(e); }
 }
+// --- PURCHASE REQUESTS (PERMOHONAN PEMBELIAN) ---
+async function loadPurchaseRequests() {
+  document.getElementById('pageTitle').textContent = 'Permohonan Pembelian Barang';
+  document.getElementById('content').innerHTML = '<div class="loader">Memuat data...</div>';
+  
+  try {
+    const list = await callBackend('listPurchaseRequests');
+    
+    let rows = list.map(pr => `
+      <tr>
+        <td><b>${pr.NomorPermohonan}</b></td>
+        <td>${new Date(pr.Tanggal).toLocaleDateString('id-ID')}</td>
+        <td>${pr.Pemohon}</td>
+        <td>Rp ${Number(pr.TotalBiaya).toLocaleString('id-ID')}</td>
+        <td><span class="badge">${pr.Status}</span></td>
+        <td>
+          <button class="btn-primary" onclick="viewPRDetail('${pr.RequestID}')" style="padding: 4px 8px; font-size:12px;">Detail</button>
+        </td>
+      </tr>
+    `).join('');
+    
+    document.getElementById('content').innerHTML = `
+      <div class="card">
+        <h3>Buat Permohonan Baru</h3>
+        <form id="prForm">
+          <div class="form-grid">
+            <div class="form-row"><label>Nama Pemohon</label><input name="pemohon" required></div>
+            <div class="form-row"><label>Jabatan / Departemen</label><input name="jabatan" required></div>
+          </div>
+          
+          <h4 style="margin-top: 20px;">Daftar Barang</h4>
+          <table id="itemsTable">
+            <thead>
+              <tr>
+                <th>Nama Barang</th>
+                <th>Qty</th>
+                <th>Satuan</th>
+                <th>Harga Satuan (Rp)</th>
+                <th>Subtotal</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody">
+              <!-- Baris item akan dimasukkan lewat JS -->
+            </tbody>
+          </table>
+          <button type="button" class="btn-primary" style="background:#10b981; margin-bottom: 15px;" onclick="addPRItemRow()">+ Tambah Barang</button>
+          
+          <div class="form-row">
+            <label>Catatan Tambahan (Opsional)</label>
+            <textarea name="catatan" rows="2"></textarea>
+          </div>
+          
+          <button class="btn-primary" type="submit" id="btnSimpanPR">Ajukan Permohonan</button>
+        </form>
+      </div>
+      
+      <div class="card">
+        <h3>Riwayat Permohonan</h3>
+        <table>
+          <thead><tr><th>No. Permohonan</th><th>Tanggal</th><th>Pemohon</th><th>Total Biaya</th><th>Status</th><th>Aksi</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="6" style="text-align:center;">Belum ada data</td></tr>'}</tbody>
+        </table>
+      </div>
+    `;
+    
+    // Tambahkan 1 baris form kosong secara default
+    addPRItemRow();
+    
+    // Event listener untuk Submit
+    document.getElementById('prForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnSimpanPR');
+      btn.textContent = 'Memproses...'; btn.disabled = true;
+      
+      try {
+        const payload = {
+          pemohon: e.target.pemohon.value,
+          jabatan: e.target.jabatan.value,
+          catatan: e.target.catatan.value,
+          items: []
+        };
+        
+        // Kumpulkan data dari tabel input
+        const rows = document.querySelectorAll('.item-row');
+        if (rows.length === 0) throw new Error("Minimal isi 1 barang.");
+        
+        rows.forEach(row => {
+          const nama = row.querySelector('.in-nama').value;
+          const qty = row.querySelector('.in-qty').value;
+          const satuan = row.querySelector('.in-satuan').value;
+          const harga = row.querySelector('.in-harga').value;
+          
+          if (nama && qty && harga) {
+            payload.items.push({ namaBarang: nama, qty: qty, satuan: satuan, hargaSatuan: harga });
+          }
+        });
 
+        await callBackend('savePurchaseRequest', payload);
+        alert('Permohonan pembelian berhasil diajukan!');
+        loadPurchaseRequests(); // Reload halaman
+      } catch (err) {
+        alert('Gagal: ' + err);
+        btn.textContent = 'Ajukan Permohonan'; btn.disabled = false;
+      }
+    };
+
+  } catch (e) { renderError(e); }
+}
+
+// Fungsi helper untuk menambah baris input barang
+function addPRItemRow() {
+  const tbody = document.getElementById('itemsBody');
+  const tr = document.createElement('tr');
+  tr.className = 'item-row';
+  tr.innerHTML = `
+    <td><input type="text" class="in-nama" placeholder="Nama Barang" required></td>
+    <td><input type="number" class="in-qty" min="1" value="1" style="width: 80px;" required></td>
+    <td>
+      <select class="in-satuan" style="width: 80px;">
+        <option value="Pcs">Pcs</option><option value="Unit">Unit</option>
+        <option value="Box">Box</option><option value="Rim">Rim</option>
+      </select>
+    </td>
+    <td><input type="number" class="in-harga" min="0" placeholder="0" required></td>
+    <td class="subtotal-text">Rp 0</td>
+    <td><button type="button" class="btn-danger" onclick="this.closest('tr').remove()">X</button></td>
+  `;
+  
+  // Logika otomatis hitung subtotal saat Qty / Harga diubah
+  const qtyInput = tr.querySelector('.in-qty');
+  const hargaInput = tr.querySelector('.in-harga');
+  const subtotalText = tr.querySelector('.subtotal-text');
+  
+  const calcSubtotal = () => {
+    const q = parseFloat(qtyInput.value) || 0;
+    const h = parseFloat(hargaInput.value) || 0;
+    subtotalText.textContent = 'Rp ' + (q * h).toLocaleString('id-ID');
+  };
+  
+  qtyInput.addEventListener('input', calcSubtotal);
+  hargaInput.addEventListener('input', calcSubtotal);
+  
+  tbody.appendChild(tr);
+}
+
+// Fungsi untuk melihat detail item PR
+async function viewPRDetail(requestId) {
+  try {
+    const items = await callBackend('getPurchaseRequestItems', requestId);
+    let itemRows = items.map(i => `
+      <tr>
+        <td>${i.NamaBarang}</td>
+        <td>${i.QTY} ${i.Satuan}</td>
+        <td>Rp ${Number(i.HargaSatuan).toLocaleString('id-ID')}</td>
+        <td>Rp ${Number(i.Total).toLocaleString('id-ID')}</td>
+      </tr>
+    `).join('');
+    
+    // Tampilkan di dalam alert/modal (Bisa diganti modal yang lebih cantik nanti)
+    alert("Detail Barang:\n\n" + items.map(i => `${i.NamaBarang} - ${i.QTY} ${i.Satuan} = Rp ${Number(i.Total).toLocaleString('id-ID')}`).join('\n'));
+  } catch (e) {
+    alert('Gagal mengambil detail: ' + e);
+  }
+}
 // --- PLACEHOLDER & ROUTER ---
 function loadPlaceholder(title) {
   document.getElementById('pageTitle').textContent = title;
