@@ -218,10 +218,11 @@ async function loadPurchaseRequests() {
       btn.textContent = 'Memproses...'; btn.disabled = true;
       
       try {
+        const form = document.getElementById('prForm');
         const payload = {
-          pemohon: e.target.pemohon.value,
-          jabatan: e.target.jabatan.value,
-          catatan: e.target.catatan.value,
+          pemohon: form.querySelector('[name="pemohon"]').value,
+          jabatan: form.querySelector('[name="jabatan"]').value,
+          catatan: form.querySelector('[name="catatan"]').value,
           items: []
         };
         
