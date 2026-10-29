@@ -319,9 +319,11 @@ function loadPlaceholder(title) {
   `;
 }
 
+
 function showPage(page, title) {
   if (page === 'dashboard') loadDashboard();
   else if (page === 'vehicles') loadVehicles();
+  else if (page === 'purchase') loadPurchaseRequests(); // <-- TAMBAHKAN BARIS INI
   else loadPlaceholder(title);
 }
 
